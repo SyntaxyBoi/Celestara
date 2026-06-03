@@ -1,0 +1,2 @@
+v1	named	intermediary
+FIELD	moth/celestara/client/mixin/WorldRendererSkyMixin	Lnet/minecraft/client/MinecraftClient;	client	field_4088
