@@ -1,6 +1,0 @@
-v1	named	intermediary
-FIELD	moth/celestara/client/mixin/BackgroundRendererEclipseMixin	F	red	field_4034
-FIELD	moth/celestara/client/mixin/BackgroundRendererEclipseMixin	F	green	field_4033
-FIELD	moth/celestara/client/mixin/BackgroundRendererEclipseMixin	F	blue	field_4032
-FIELD	moth/celestara/client/mixin/WorldEclipseLightMixin	I	ambientDarkness	field_9226
-FIELD	moth/celestara/client/mixin/WorldRendererSkyMixin	Lnet/minecraft/client/MinecraftClient;	client	field_4088
