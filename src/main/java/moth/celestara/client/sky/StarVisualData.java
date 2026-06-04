@@ -16,6 +16,7 @@ public record StarVisualData(
         float oscillationPhase,
         float oscillationSpeed,
         float maxRotationOffset,
-        float layerSpeed
+        float layerSpeed,
+        boolean supergiant
 ) {
 }

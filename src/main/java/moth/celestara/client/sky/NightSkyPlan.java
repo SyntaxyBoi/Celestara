@@ -9,6 +9,8 @@ public record NightSkyPlan(
         long nightIndex,
         long seed,
         float starCountMultiplier,
+        NightSkyMood mood,
+        boolean forcedMood,
         boolean meteorShower,
         boolean forcedMeteorShower,
         boolean forcedCommandComet,

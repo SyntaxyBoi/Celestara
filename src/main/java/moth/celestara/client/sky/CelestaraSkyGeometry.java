@@ -16,6 +16,10 @@ public final class CelestaraSkyGeometry {
         double radians = Math.toRadians(degrees);
         double cos = Math.cos(radians);
         double sin = Math.sin(radians);
+        return rotateX(vector, cos, sin);
+    }
+
+    public static Vec3d rotateX(Vec3d vector, double cos, double sin) {
         return new Vec3d(
                 vector.x,
                 vector.y * cos - vector.z * sin,

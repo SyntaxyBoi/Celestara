@@ -27,8 +27,16 @@ public final class NightSkyPlanManager {
             return currentPlan;
         }
 
+        return getPlan(world, nightIndexForTime(world.getTimeOfDay()));
+    }
+
+    public static NightSkyPlan getPlan(ClientWorld world, long nightIndex) {
+        if (!isAllowedDimension(world)) {
+            currentPlan = null;
+            return null;
+        }
+
         Identifier dimension = world.getRegistryKey().getValue();
-        long nightIndex = nightIndexForTime(world.getTimeOfDay());
         if (currentPlan != null
                 && currentPlan.nightIndex() == nightIndex
                 && currentPlan.dimension().equals(dimension)) {
@@ -43,17 +51,30 @@ public final class NightSkyPlanManager {
 
     public static void applyCommandOverride(Identifier dimension, long timeOfDay,
                                             ForcedNightEvent event, boolean enabled) {
+        applyCommandOverride(dimension, timeOfDay, event, enabled, CometColorChoice.RANDOM_COLOR);
+    }
+
+    public static void applyCommandOverride(Identifier dimension, long timeOfDay,
+                                            ForcedNightEvent event, boolean enabled, int colorOverride) {
         PlanKey key = new PlanKey(dimension, nightIndexForTime(timeOfDay));
+        if (event == ForcedNightEvent.REFRESH_SKY) {
+            refresh(dimension, timeOfDay);
+            return;
+        }
+
         ForcedNightSkyOptions existing = FORCED_OPTIONS.getOrDefault(key, ForcedNightSkyOptions.NONE);
         ForcedNightSkyOptions updated;
         int offset = nightOffsetForTime(timeOfDay);
 
-        if (event == ForcedNightEvent.METEOR_SHOWER) {
-            updated = existing.withMeteorShower(enabled);
-        } else if (enabled && existing.forceMeteorShower()) {
-            updated = existing;
-        } else {
-            updated = existing.withCommandComet(enabled, offset);
+        switch (event) {
+            case METEOR_SHOWER -> updated = existing.withMeteorShower(enabled);
+            case COMET -> updated = enabled && existing.forceMeteorShower()
+                    ? existing
+                    : existing.withCommandComet(enabled, offset, colorOverride);
+            case QUIET_NIGHT -> updated = existing.withForcedMood(enabled ? NightSkyMood.QUIET : NightSkyMood.NORMAL);
+            case LOUD_NIGHT -> updated = existing.withForcedMood(enabled ? NightSkyMood.LOUD : NightSkyMood.NORMAL);
+            case CLEAR_NIGHT_MOOD -> updated = existing.withForcedMood(NightSkyMood.NORMAL);
+            default -> updated = existing;
         }
 
         if (updated.isEmpty()) {
@@ -69,9 +90,26 @@ public final class NightSkyPlanManager {
         }
     }
 
+    public static boolean refresh(Identifier dimension, long timeOfDay) {
+        if (currentPlan == null) {
+            return false;
+        }
+
+        long nightIndex = nightIndexForTime(timeOfDay);
+        if (currentPlan.nightIndex() == nightIndex && currentPlan.dimension().equals(dimension)) {
+            currentPlan = null;
+            return true;
+        }
+        return false;
+    }
+
     public static void clear() {
         currentPlan = null;
         FORCED_OPTIONS.clear();
+    }
+
+    public static NightSkyPlan currentPlan() {
+        return currentPlan;
     }
 
     public static boolean isAllowedDimension(ClientWorld world) {

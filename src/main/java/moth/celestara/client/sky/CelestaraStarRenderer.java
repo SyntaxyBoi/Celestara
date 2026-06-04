@@ -18,25 +18,41 @@ public final class CelestaraStarRenderer {
         boolean emitted = false;
         for (StarVisualData star : plan.stars()) {
             float alphaScale = starAlphaScale(star, visibility, time);
-            int alpha = Math.round(185.0F * alphaScale);
+            int alpha = Math.round((star.supergiant() ? 220.0F : 185.0F) * alphaScale);
             if (alpha <= 3) {
                 continue;
             }
 
             float layerRotation = skyRotationDegrees * star.layerSpeed();
-            Vec3d direction = CelestaraSkyGeometry.rotateX(star.direction(), layerRotation);
+            double layerRadians = Math.toRadians(layerRotation);
+            double layerCos = Math.cos(layerRadians);
+            double layerSin = Math.sin(layerRadians);
+            Vec3d direction = CelestaraSkyGeometry.rotateX(star.direction(), layerCos, layerSin);
             Vec3d center = CelestaraSkyGeometry.skyPosition(direction);
             float rotation = star.baseRotation()
                     + MathHelper.sin((float) (time * star.oscillationSpeed() + star.oscillationPhase())) * star.maxRotationOffset();
             double radians = Math.toRadians(rotation);
             double cos = Math.cos(radians);
             double sin = Math.sin(radians);
-            Vec3d baseRight = CelestaraSkyGeometry.rotateX(star.basis().right(), layerRotation);
-            Vec3d baseUp = CelestaraSkyGeometry.rotateX(star.basis().up(), layerRotation);
+            Vec3d baseRight = CelestaraSkyGeometry.rotateX(star.basis().right(), layerCos, layerSin);
+            Vec3d baseUp = CelestaraSkyGeometry.rotateX(star.basis().up(), layerCos, layerSin);
             Vec3d right = baseRight.multiply(cos).add(baseUp.multiply(sin));
             Vec3d up = baseUp.multiply(cos).subtract(baseRight.multiply(sin));
 
             int starColor = star.color();
+            if (star.supergiant()) {
+                CelestaraSkyGeometry.emitDiamond(
+                        matrix,
+                        buffer,
+                        center,
+                        right,
+                        up,
+                        star.size() * 2.10F,
+                        star.size() * 2.10F,
+                        starColor,
+                        Math.round(alpha * 0.12F)
+                );
+            }
             if (star.size() > 0.092F) {
                 CelestaraSkyGeometry.emitDiamond(
                         matrix,

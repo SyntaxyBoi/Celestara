@@ -9,6 +9,9 @@ import org.joml.Matrix4f;
 import java.util.List;
 
 public final class CelestaraEffectRenderer {
+    private static final Vec3d RIGHT = new Vec3d(1.0D, 0.0D, 0.0D);
+    private static final Vec3d UP = new Vec3d(0.0D, 1.0D, 0.0D);
+
     private CelestaraEffectRenderer() {
     }
 
@@ -23,6 +26,25 @@ public final class CelestaraEffectRenderer {
         boolean emitted = false;
         emitted |= renderShootingStars(matrix, buffer, plan, nightOffset, time, visibility, skyRotationDegrees);
         emitted |= renderComets(matrix, buffer, plan, nightOffset, time, visibility, skyRotationDegrees);
+        return emitted;
+    }
+
+    public static boolean renderPersistentComets(Matrix4f matrix, BufferBuilder buffer,
+                                                 List<PersistentCometEvent> comets, double worldTime,
+                                                 float visibility) {
+        if (!CelestaraVisualConstants.MOVING_EFFECTS_ENABLED
+                || comets.isEmpty()
+                || visibility <= CelestaraVisualConstants.MIN_VISIBILITY) {
+            return false;
+        }
+
+        boolean emitted = false;
+        for (PersistentCometEvent comet : comets) {
+            if (comet.isActive(worldTime)) {
+                renderPersistentComet(matrix, buffer, comet, worldTime, visibility);
+                emitted = true;
+            }
+        }
         return emitted;
     }
 
@@ -134,6 +156,41 @@ public final class CelestaraEffectRenderer {
         );
     }
 
+    private static void renderPersistentComet(Matrix4f matrix, BufferBuilder buffer, PersistentCometEvent comet,
+                                              double worldTime, float visibility) {
+        float progress = MathHelper.clamp(comet.progress(worldTime), 0.0F, 1.0F);
+        float alphaScale = visibility * comet.brightness() * comet.fade(worldTime);
+        if (alphaScale <= 0.01F) {
+            return;
+        }
+
+        renderTrail(
+                matrix,
+                buffer,
+                comet.path(),
+                progress,
+                comet.trailProgressLength(),
+                comet.size(),
+                comet.color(),
+                Math.round(218.0F * alphaScale),
+                CelestaraVisualConstants.PERSISTENT_COMET_TRAIL_SEGMENTS,
+                true,
+                0.0F
+        );
+        renderHead(
+                matrix,
+                buffer,
+                comet.path(),
+                progress,
+                comet.size(),
+                comet.headRotation() + (float) (worldTime * comet.spinSpeed()),
+                comet.color(),
+                Math.round(232.0F * alphaScale),
+                true,
+                0.0F
+        );
+    }
+
     private static void renderTrail(Matrix4f matrix, BufferBuilder buffer, SkyPath path, float headProgress,
                                     float trailProgressLength, float size, int color, int headAlpha,
                                     int segments, boolean comet, float skyRotationDegrees) {
@@ -143,7 +200,18 @@ public final class CelestaraEffectRenderer {
 
         float tailProgress = Math.max(0.0F, headProgress - trailProgressLength);
         int outerColor = comet ? CelestialColorPalette.mix(color, 0xFFFFFF, 0.08F) : 0xF8FBFF;
-        TrailSample[] samples = buildTrailSamples(path, tailProgress, headProgress, size, headAlpha, segments, comet, skyRotationDegrees);
+        double skyRadians = Math.toRadians(skyRotationDegrees);
+        TrailSample[] samples = buildTrailSamples(
+                path,
+                tailProgress,
+                headProgress,
+                size,
+                headAlpha,
+                segments,
+                comet,
+                Math.cos(skyRadians),
+                Math.sin(skyRadians)
+        );
         if (samples.length < 2) {
             return;
         }
@@ -152,7 +220,8 @@ public final class CelestaraEffectRenderer {
     }
 
     private static TrailSample[] buildTrailSamples(SkyPath path, float tailProgress, float headProgress, float size,
-                                                   int headAlpha, int segments, boolean comet, float skyRotationDegrees) {
+                                                   int headAlpha, int segments, boolean comet,
+                                                   double skyCos, double skySin) {
         TrailSample[] samples = new TrailSample[segments + 1];
         Vec3d previousSide = null;
         for (int index = 0; index <= segments; index++) {
@@ -162,11 +231,11 @@ public final class CelestaraEffectRenderer {
             float width = size * MathHelper.lerp(tailFade, comet ? 0.18F : 0.20F, comet ? 0.92F : 1.0F);
             int alpha = Math.round(headAlpha * tailFade * (comet ? 0.78F : 0.72F));
 
-            Vec3d direction = CelestaraSkyGeometry.rotateX(path.positionAt(pathProgress), skyRotationDegrees);
-            Vec3d tangent = CelestaraSkyGeometry.rotateX(path.tangentAt(pathProgress), skyRotationDegrees);
+            Vec3d direction = CelestaraSkyGeometry.rotateX(path.positionAt(pathProgress), skyCos, skySin);
+            Vec3d tangent = CelestaraSkyGeometry.rotateX(path.tangentAt(pathProgress), skyCos, skySin);
             Vec3d side = Vecs.safeNormalize(direction.crossProduct(tangent), previousSide == null ? Vec3d.ZERO : previousSide);
             if (side.lengthSquared() <= 1.0E-7D) {
-                side = previousSide == null ? new Vec3d(1.0D, 0.0D, 0.0D) : previousSide;
+                side = previousSide == null ? RIGHT : previousSide;
             }
             if (previousSide != null && side.dotProduct(previousSide) < 0.0D) {
                 side = side.multiply(-1.0D);
@@ -203,10 +272,13 @@ public final class CelestaraEffectRenderer {
             return;
         }
 
-        Vec3d direction = CelestaraSkyGeometry.rotateX(path.positionAt(progress), skyRotationDegrees);
-        Vec3d tangent = CelestaraSkyGeometry.rotateX(path.tangentAt(progress), skyRotationDegrees);
-        Vec3d right = Vecs.safeNormalize(tangent, new Vec3d(1.0D, 0.0D, 0.0D));
-        Vec3d up = Vecs.safeNormalize(direction.crossProduct(right), new Vec3d(0.0D, 1.0D, 0.0D));
+        double skyRadians = Math.toRadians(skyRotationDegrees);
+        double skyCos = Math.cos(skyRadians);
+        double skySin = Math.sin(skyRadians);
+        Vec3d direction = CelestaraSkyGeometry.rotateX(path.positionAt(progress), skyCos, skySin);
+        Vec3d tangent = CelestaraSkyGeometry.rotateX(path.tangentAt(progress), skyCos, skySin);
+        Vec3d right = Vecs.safeNormalize(tangent, RIGHT);
+        Vec3d up = Vecs.safeNormalize(direction.crossProduct(right), UP);
         double radians = Math.toRadians(rotation);
         double cos = Math.cos(radians);
         double sin = Math.sin(radians);
